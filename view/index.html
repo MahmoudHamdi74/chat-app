@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script
+      src="https://kit.fontawesome.com/1c2427417b.js"
+      crossorigin="anonymous"
+    ></script>
+    <link rel="stylesheet" href="./style.css" />
+    <script src="/socket.io/socket.io.js"></script>
+    <title>socket.io Chat</title>
+  </head>
+  <body>
+    <form class="container" id="message-form" style="display: none;">
+      <div class="nav-bar">
+        <a>Chat</a>
+        <div class="close">
+          <div class="line one"></div>
+          <div class="line two"></div>
+        </div>
+      </div>
+      <div class="messages-area">
+        <h1 id="message-container"></h1>
+      </div>
+      <div class="sender-area">
+        <div class="input-place">
+          <input
+            type="text"
+            name="message"
+            class="send-input"
+            id="message-input"
+            placeholder="Type your message here"
+          />
+          <div class="send">
+            <button type="submit" class="send-button">
+              <svg
+                class="send-icon"
+                version="1.1"
+                id="Capa_1"
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                x="0px"
+                y="0px"
+                viewBox="0 0 512 512"
+                style="enable-background: new 0 0 512 512"
+                xml:space="preserve"
+              >
+                <g>
+                  <g>
+                    <path
+                      fill="#6B6C7B"
+                      d="M481.508,210.336L68.414,38.926c-17.403-7.222-37.064-4.045-51.309,8.287C2.86,59.547-3.098,78.551,1.558,96.808 L38.327,241h180.026c8.284,0,15.001,6.716,15.001,15.001c0,8.284-6.716,15.001-15.001,15.001H38.327L1.558,415.193 c-4.656,18.258,1.301,37.262,15.547,49.595c14.274,12.357,33.937,15.495,51.31,8.287l413.094-171.409 C500.317,293.862,512,276.364,512,256.001C512,235.638,500.317,218.139,481.508,210.336z"
+                    ></path>
+                  </g>
+                </g>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div></div>
+    </form>
+
+    <div id="username-screen">
+      <h2>Enter your name</h2>
+      <input
+        id="username-input"
+        type="text"
+        placeholder="Enter your name"
+      />
+      <button id="start-chat">
+        Start
+      </button>
+    </div>
+
+    <form class="container-blur" id="message-form-blur">
+      <div class="nav-bar">
+        <a>Chat</a>
+        <div class="close">
+          <div class="line one"></div>
+          <div class="line two"></div>
+        </div>
+      </div>
+      <div class="messages-area">
+        <h1 id="message-container"></h1>
+      </div>
+      <div class="sender-area">
+        <div class="input-place">
+          <input
+            type="text"
+            name="message"
+            class="send-input"
+            id="message-input"
+            placeholder="Type your message here"
+          />
+          <div class="send">
+            <button type="submit" class="send-button">
+              <svg
+                class="send-icon"
+                version="1.1"
+                id="Capa_1"
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                x="0px"
+                y="0px"
+                viewBox="0 0 512 512"
+                style="enable-background: new 0 0 512 512"
+                xml:space="preserve"
+              >
+                <g>
+                  <g>
+                    <path
+                      fill="#6B6C7B"
+                      d="M481.508,210.336L68.414,38.926c-17.403-7.222-37.064-4.045-51.309,8.287C2.86,59.547-3.098,78.551,1.558,96.808 L38.327,241h180.026c8.284,0,15.001,6.716,15.001,15.001c0,8.284-6.716,15.001-15.001,15.001H38.327L1.558,415.193 c-4.656,18.258,1.301,37.262,15.547,49.595c14.274,12.357,33.937,15.495,51.31,8.287l413.094-171.409 C500.317,293.862,512,276.364,512,256.001C512,235.638,500.317,218.139,481.508,210.336z"
+                    ></path>
+                  </g>
+                </g>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div></div>
+    </form>
+
+    <!-- <div id="message-container"></div>
+    <form action="" id="message-form">
+        <button type="submit" class="w-2 "><i class="fa-solid fa-paper-plane"></i></button>
+    </form> -->
+  </body>
+  <script>
+    const socket = window.io("http://10.170.240.69:3000");
+    const form = document.getElementById("message-form");
+    const input = document.getElementById("message-input");
+    const messageContainer = document.getElementById("message-container");
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const message = input.value;
+      socket.emit("send-message", { message, username });
+      messageContainer.innerHTML += `<h1 style="background-color: #10a37f; margin-block: 10px;">You: ${message}</h1>`;
+      input.value = "";
+    };
+    socket.on("send-message", ({ message, username }) => {
+      messageContainer.innerHTML += `<h1 style="background-color: #6B6C7B;text-align:right; margin-block: 10px;">${message} : ${username}</h1>`;
+    });
+
+
+    let username = "";
+
+    const usernameScreen = document.getElementById("username-screen");
+    const messageForm = document.getElementById("message-form");
+    const messageFormBlur = document.getElementById("message-form-blur");
+    const usernameInput = document.getElementById("username-input");
+    const startBtn = document.getElementById("start-chat");
+
+    startBtn.addEventListener("click", () => {
+        const name = usernameInput.value.trim();
+
+        if (name === "") {
+            alert("Enter your name to start the chat");
+            return;
+        }
+
+        username = name;
+        usernameScreen.style.display = "none";
+        messageFormBlur.style.display = "none";
+        messageForm.style.display = "flex";
+    });
+  </script>
+</html>

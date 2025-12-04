@@ -1,0 +1,20 @@
+{
+  "name": "socket.io-chat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tailwindcss/cli": "^4.1.17",
+    "express": "^5.2.1",
+    "nodemon": "^3.1.11",
+    "socket.io": "^4.8.1",
+    "tailwindcss": "^4.1.17"
+  }
+}
