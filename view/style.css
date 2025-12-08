@@ -326,6 +326,7 @@ body {
   .messages-area {
     padding: 10px;
     gap: 10px;
+    height: calc(100% - 110px);
   }
   
   .messages-area h1 {
@@ -335,6 +336,7 @@ body {
   
   .sender-area {
     padding: 10px;
+    margin-bottom: 50px;
   }
   
   .input-place {
@@ -366,5 +368,6 @@ body {
   #start-chat {
     max-width: 90%;
     font-size: 16px;
+    min-width: 70vw;
   }
 }
