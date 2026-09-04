@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script
+      src="https://kit.fontawesome.com/1c2427417b.js"
+      crossorigin="anonymous"
+    ></script>
+    <link rel="stylesheet" href="./style.css" />
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script src="./socket.io.min.js"></script>
+    <title>socket.io Chat</title>
+    <style>
+      #toast{position:fixed;top:15px;left:50%;transform:translateX(-50%) translateY(-80px);background:#10a37f;color:#fff;padding:12px 20px;border-radius:10px;z-index:2000;transition:.3s;font-size:15px;max-width:90vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      #toast.show{transform:translateX(-50%) translateY(0)}
+      #peer-screen{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);display:none;flex-direction:column;align-items:center;background:rgba(26,26,26,.95);gap:15px;padding:40px;border-radius:12px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,.5);width:min(440px,92vw)}
+      #peer-screen h2{color:#fff;font-size:26px}
+      #peer-screen p{color:#828E9E}
+      #peer-input{width:100%;max-width:400px;padding:15px 20px;font-size:18px;border:2px solid #40414F;border-radius:8px;background:#343541;color:#fff;outline:none}
+      #start-peer{width:100%;max-width:400px;padding:15px;font-size:18px;font-weight:600;color:#fff;background:#10a37f;border:none;border-radius:8px;cursor:pointer}
+      #contacts{display:flex;flex-direction:column;gap:8px;width:100%;max-width:400px;max-height:200px;overflow-y:auto}
+      .contact{display:flex;justify-content:space-between;align-items:center;background:#343541;border:1px solid #40414F;border-radius:8px;padding:10px 14px;color:#fff;cursor:pointer;font-size:16px}
+      #btn-new{background:#40414F;color:#fff;border:1px solid #6B6C7B;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:13px;margin-inline-start:8px}
+    </style>
+  </head>
+  <body>
+    <div id="toast"></div>
+    <div id="conn-status" style="position:fixed;bottom:5px;left:50%;transform:translateX(-50%);color:#828E9E;font-size:12px;z-index:2000;background:rgba(0,0,0,.6);padding:4px 12px;border-radius:10px">connecting...</div>
+    <form class="container" id="message-form" style="display: none;">
+      <div class="nav-bar">
+        <a id="chat-title">Chat</a>
+        <button type="button" id="btn-new" title="chat with someone else">New Chat ➕</button>
+        <div class="close">
+          <div class="line one"></div>
+          <div class="line two"></div>
+        </div>
+      </div>
+      <div class="messages-area">
+        <h1 id="message-container"></h1>
+      </div>
+      <div class="sender-area">
+        <div class="input-place">
+          <input
+            type="text"
+            name="message"
+            class="send-input"
+            id="message-input"
+            placeholder="Type your message here"
+          />
+          <div class="send">
+            <button type="submit" class="send-button">
+              <svg
+                class="send-icon"
+                version="1.1"
+                id="Capa_1"
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                x="0px"
+                y="0px"
+                viewBox="0 0 512 512"
+                style="enable-background: new 0 0 512 512"
+                xml:space="preserve"
+              >
+                <g>
+                  <g>
+                    <path
+                      fill="#6B6C7B"
+                      d="M481.508,210.336L68.414,38.926c-17.403-7.222-37.064-4.045-51.309,8.287C2.86,59.547-3.098,78.551,1.558,96.808 L38.327,241h180.026c8.284,0,15.001,6.716,15.001,15.001c0,8.284-6.716,15.001-15.001,15.001H38.327L1.558,415.193 c-4.656,18.258,1.301,37.262,15.547,49.595c14.274,12.357,33.937,15.495,51.31,8.287l413.094-171.409 C500.317,293.862,512,276.364,512,256.001C512,235.638,500.317,218.139,481.508,210.336z"
+                    ></path>
+                  </g>
+                </g>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div></div>
+    </form>
+
+    <div id="username-screen">
+      <h2>Enter your name</h2>
+      <input
+        id="username-input"
+        type="text"
+        placeholder="Enter your name"
+      />
+      <button id="start-chat">
+        Start
+      </button>
+    </div>
+
+    <div id="peer-screen">
+      <h2>Who do you want to chat with?</h2>
+      <p id="hello"></p>
+      <input id="peer-input" type="text" placeholder="Other person's username" />
+      <button id="start-peer">Start chat</button>
+      <h3 style="color:#fff;font-size:16px">Previous chats</h3>
+      <div id="contacts"></div>
+    </div>
+
+    <form class="container-blur" id="message-form-blur">
+      <div class="nav-bar">
+        <a>Chat</a>
+        <div class="close">
+          <div class="line one"></div>
+          <div class="line two"></div>
+        </div>
+      </div>
+      <div class="messages-area">
+        <h1 id="message-container"></h1>
+      </div>
+      <div class="sender-area">
+        <div class="input-place">
+          <input
+            type="text"
+            name="message"
+            class="send-input"
+            id="message-input"
+            placeholder="Type your message here"
+          />
+          <div class="send">
+            <button type="submit" class="send-button">
+              <svg
+                class="send-icon"
+                version="1.1"
+                id="Capa_1"
+                xmlns="http://www.w3.org/2000/svg"
+                xmlns:xlink="http://www.w3.org/1999/xlink"
+                x="0px"
+                y="0px"
+                viewBox="0 0 512 512"
+                style="enable-background: new 0 0 512 512"
+                xml:space="preserve"
+              >
+                <g>
+                  <g>
+                    <path
+                      fill="#6B6C7B"
+                      d="M481.508,210.336L68.414,38.926c-17.403-7.222-37.064-4.045-51.309,8.287C2.86,59.547-3.098,78.551,1.558,96.808 L38.327,241h180.026c8.284,0,15.001,6.716,15.001,15.001c0,8.284-6.716,15.001-15.001,15.001H38.327L1.558,415.193 c-4.656,18.258,1.301,37.262,15.547,49.595c14.274,12.357,33.937,15.495,51.31,8.287l413.094-171.409 C500.317,293.862,512,276.364,512,256.001C512,235.638,500.317,218.139,481.508,210.336z"
+                    ></path>
+                  </g>
+                </g>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div></div>
+    </form>
+
+    <!-- <div id="message-container"></div>
+    <form action="" id="message-form">
+        <button type="submit" class="w-2 "><i class="fa-solid fa-paper-plane"></i></button>
+    </form> -->
+  </body>
+  <script>
+    const RAILWAY_URL = "https://chat-app-production-d626.up.railway.app";
+    const isLocal = location.hostname === "localhost" || location.hostname === "127.0.0.1" || location.hostname === "" || location.protocol === "file:";
+    const SOCKET_URL = isLocal ? "http://localhost:3000" : RAILWAY_URL;
+    const socket = window.io(SOCKET_URL);
+    const connStatus = () => document.getElementById("conn-status");
+    function setStatus(t) { const el = connStatus(); el.textContent = t; el.style.display = "block"; clearTimeout(setStatus.t); setStatus.t = setTimeout(() => { el.style.display = "none"; }, 5000); }
+    socket.on("connect", () => { console.log("connected:", socket.id, "via", SOCKET_URL); setStatus("✅ connected " + socket.id.slice(0,5) + " as " + (username || "?")); });
+    socket.on("disconnect", () => { setStatus("❌ disconnected"); });
+    socket.on("connect_error", (e) => { console.log("connect_error:", e.message, "url=" + SOCKET_URL); setStatus("❌ connect_error: " + e.message + " (URL=" + SOCKET_URL + ")"); });
+    const form = document.getElementById("message-form");
+    const input = document.getElementById("message-input");
+    const messageContainer = document.getElementById("message-container");
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const message = input.value;
+      socket.emit("send-message", { message, username });
+      messageContainer.innerHTML += `<h1 style="background-color: #10a37f; margin-block: 10px;">You: ${message}</h1>`;
+      input.value = "";
+    };
+    socket.on("send-message", ({ message, username }) => {
+      messageContainer.innerHTML += `<h1 style="background-color: #6B6C7B;text-align:right; margin-block: 10px;">${message} : ${username}</h1>`;
+    });
+
+
+    let username = sessionStorage.getItem("pc_myname") || "";
+
+    const usernameScreen = document.getElementById("username-screen");
+    const messageForm = document.getElementById("message-form");
+    const messageFormBlur = document.getElementById("message-form-blur");
+    const usernameInput = document.getElementById("username-input");
+    const startBtn = document.getElementById("start-chat");
+
+    startBtn.addEventListener("click", () => {
+        const name = usernameInput.value.trim();
+
+        if (name === "") {
+            alert("Enter your name to start the chat");
+            return;
+        }
+
+        username = name;
+        sessionStorage.setItem("pc_myname", username);
+        localStorage.setItem("pc_myname", username);
+        socket.emit("register", { username });
+        if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+        usernameScreen.style.display = "none";
+        document.getElementById("peer-screen").style.display = "flex";
+        document.getElementById("hello").textContent = "Hello " + username;
+        renderContacts();
+    });
+
+    // ---- added: private chat + notifications + persistence (original code kept above) ----
+    let peer = "";
+    let audioCtx = null;
+    const peerScreen = document.getElementById("peer-screen");
+    const toastEl = document.getElementById("toast");
+    const histKey = () => `pc_chat_${username.toLowerCase()}::${peer.toLowerCase()}`;
+    const loadHist = () => { try { return JSON.parse(localStorage.getItem(histKey()) || "[]"); } catch { return []; } };
+    const saveHist = (h) => localStorage.setItem(histKey(), JSON.stringify(h.slice(-500)));
+    const getContacts = () => { try { return JSON.parse(localStorage.getItem(`pc_contacts_${username.toLowerCase()}`) || "[]"); } catch { return []; } };
+    function renderContacts() {
+      const box = document.getElementById("contacts");
+      if (!box) return;
+      const c = getContacts();
+      box.innerHTML = c.length ? "" : '<small style="color:#828E9E">No chats yet</small>';
+      c.forEach((name) => {
+        const d = document.createElement("div");
+        d.className = "contact";
+        d.textContent = name;
+        d.onclick = () => openChat(name);
+        box.appendChild(d);
+      });
+    }
+    function addContact(p) {
+      if (!username) return;
+      let c = getContacts();
+      c = [p, ...c.filter((x) => x.toLowerCase() !== p.toLowerCase())].slice(0, 20);
+      localStorage.setItem(`pc_contacts_${username.toLowerCase()}`, JSON.stringify(c));
+      renderContacts();
+    }
+    function showToast(t) { toastEl.textContent = t; toastEl.classList.add("show"); clearTimeout(showToast.t); showToast.t = setTimeout(() => toastEl.classList.remove("show"), 3000); }
+    function beep() { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.connect(g); g.connect(audioCtx.destination); o.frequency.value = 880; g.gain.value = 0.15; o.start(); o.stop(audioCtx.currentTime + 0.25); } catch (e) {} }
+    function notifyMsg(m) {
+      beep();
+      showToast("📩 " + m.from + ": " + String(m.message).slice(0, 60));
+      if ("Notification" in window && Notification.permission === "granted") { try { new Notification("Message from " + m.from, { body: m.message }); } catch (e) {} }
+    }
+    function openChat(peerName) {
+      peerName = String(peerName || document.getElementById("peer-input").value || "").trim();
+      if (!peerName) { alert("Enter the other person's username"); return; }
+      if (peerName.toLowerCase() === username.toLowerCase()) { alert("You can't chat with yourself"); return; }
+      peer = peerName;
+      addContact(peer);
+      document.getElementById("chat-title").textContent = username + " ↔ " + peer;
+      peerScreen.style.display = "none";
+      messageFormBlur.style.display = "none";
+      messageForm.style.display = "flex";
+      messageContainer.innerHTML = "";
+      loadHist().forEach((m) => appendMsg(m.from === username ? `You: ${m.message}` : `${m.message} : ${m.from}`, m.from === username));
+      socket.emit("get-history", { withUser: peer }, (srv) => {
+        if (!srv || !srv.length) return;
+        const local = loadHist();
+        const seen = new Set(local.map((m) => m.at + m.from + m.message));
+        const merged = [...local, ...srv.filter((m) => !seen.has(m.at + m.from + m.message))].sort((a, b) => a.at - b.at).slice(-500);
+        messageContainer.innerHTML = "";
+        merged.forEach((m) => appendMsg(m.from === username ? `You: ${m.message}` : `${m.message} : ${m.from}`, m.from === username));
+        saveHist(merged);
+      });
+    }
+    function appendMsg(text, mine) {
+      messageContainer.innerHTML += mine
+        ? `<h1 style="background-color: #10a37f; margin-block: 10px;">You: ${text.replace(/^You:\s*/, "")}</h1>`
+        : `<h1 style="background-color: #6B6C7B;text-align:right; margin-block: 10px;">${text}</h1>`;
+    }
+    document.getElementById("start-peer").addEventListener("click", () => openChat());
+    document.getElementById("btn-new").addEventListener("click", () => {
+      messageForm.style.display = "none";
+      peerScreen.style.display = "flex";
+      peer = "";
+      renderContacts();
+    });
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+      if (!peer) { alert("Choose who to chat with first"); return; }
+      console.log("SEND to=" + peer + " msg=" + message + " connected=" + socket.connected);
+      setStatus("📤 sending to " + peer + "...");
+      socket.emit("private-message", { to: peer, message });
+      appendMsg("You: " + message, true);
+      const h = loadHist(); h.push({ from: username, to: peer, message, at: Date.now() }); saveHist(h);
+      addContact(peer);
+      input.value = "";
+    };
+    socket.on("private-message", (m) => {
+      console.log("RECV", JSON.stringify(m));
+      if (!username) return;
+      const k = `pc_chat_${username.toLowerCase()}::${String(m.from).toLowerCase()}`;
+      try { const h = JSON.parse(localStorage.getItem(k) || "[]"); h.push(m); localStorage.setItem(k, JSON.stringify(h.slice(-500))); } catch (e) {}
+      addContact(m.from);
+      if (peer && m.from.toLowerCase() === peer.toLowerCase()) {
+        appendMsg(`${m.message} : ${m.from}`, false);
+      } else {
+        showToast("📩 " + m.from + ": " + String(m.message).slice(0, 60) + " click to view");
+        toastEl.onclick = () => { document.getElementById("peer-input").value = m.from; openChat(m.from); toastEl.classList.remove("show"); };
+      }
+      notifyMsg(m);
+    });
+    socket.on("connect", () => {
+      const saved = sessionStorage.getItem("pc_myname");
+      if (saved && !username) { username = saved; usernameInput.value = saved; socket.emit("register", { username }); }
+      else if (username) socket.emit("register", { username });
+    });
+    if (username) { usernameInput.value = username; }
+  </script>
+</html>
