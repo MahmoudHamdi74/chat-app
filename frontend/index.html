@@ -11,6 +11,14 @@
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <script src="./socket.io.min.js"></script>
     <title>socket.io Chat</title>
+    <meta name="description" content="Private real-time chat" />
+    <meta name="theme-color" content="#343541" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
     <style>
       #toast{position:fixed;top:15px;left:50%;transform:translateX(-50%) translateY(-80px);background:#10a37f;color:#fff;padding:12px 20px;border-radius:10px;z-index:2000;transition:.3s;font-size:15px;max-width:90vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       #toast.show{transform:translateX(-50%) translateY(0)}
@@ -22,6 +30,9 @@
       #contacts{display:flex;flex-direction:column;gap:8px;width:100%;max-width:400px;max-height:200px;overflow-y:auto}
       .contact{display:flex;justify-content:space-between;align-items:center;background:#343541;border:1px solid #40414F;border-radius:8px;padding:10px 14px;color:#fff;cursor:pointer;font-size:16px}
       #btn-new{background:#40414F;color:#fff;border:1px solid #6B6C7B;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:13px;margin-inline-start:8px}
+      .app-logo{border-radius:8px;flex-shrink:0}
+      .msg-actions button{background:none;border:none;cursor:pointer;font-size:12px;margin-inline-start:8px;opacity:.7}
+      .msg-actions button:hover{opacity:1}
     </style>
   </head>
   <body>
@@ -29,7 +40,7 @@
     <div id="conn-status" style="position:fixed;bottom:5px;left:50%;transform:translateX(-50%);color:#828E9E;font-size:12px;z-index:2000;background:rgba(0,0,0,.6);padding:4px 12px;border-radius:10px">connecting...</div>
     <form class="container" id="message-form" style="display: none;">
       <div class="nav-bar">
-        <a id="chat-title">Chat</a>
+        <a id="chat-title" style="display:flex;align-items:center;gap:8px"><svg class="app-logo" viewBox="0 0 48 48" width="28" height="28" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#12b886"/><stop offset="1" stop-color="#0b6e54"/></linearGradient></defs><rect x="2" y="2" width="44" height="44" rx="12" fill="url(#lg)"/><path d="M13 15h22a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H24l-7 7v-7h-4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z" fill="#fff"/><circle cx="20" cy="21.5" r="2" fill="#0b6e54"/><circle cx="25" cy="21.5" r="2" fill="#0b6e54"/><circle cx="30" cy="21.5" r="2" fill="#0b6e54"/></svg><span>Chat</span></a>
         <button type="button" id="btn-new" title="chat with someone else">New Chat ➕</button>
         <div class="close">
           <div class="line one"></div>
@@ -195,15 +206,13 @@
             return;
         }
 
-        username = name;
-        sessionStorage.setItem("pc_myname", username);
-        localStorage.setItem("pc_myname", username);
-        socket.emit("register", { username });
-        if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
-        usernameScreen.style.display = "none";
-        document.getElementById("peer-screen").style.display = "flex";
-        document.getElementById("hello").textContent = "Hello " + username;
-        renderContacts();
+        tryRegister(name, (ok) => {
+          if (!ok) return;
+          usernameScreen.style.display = "none";
+          document.getElementById("peer-screen").style.display = "flex";
+          document.getElementById("hello").textContent = "Hello " + username;
+          renderContacts();
+        });
     });
 
     // ---- added: private chat + notifications + persistence (original code kept above) ----
@@ -211,6 +220,22 @@
     let audioCtx = null;
     const peerScreen = document.getElementById("peer-screen");
     const toastEl = document.getElementById("toast");
+    const msgKey = (m) => m.id || (m.at + "|" + m.from + "|" + m.message);
+    function tryRegister(name, cb) {
+      socket.emit("register", { username: name }, (res) => {
+        if (!res || !res.ok) {
+          if (res && res.error === "taken") alert("Username '" + name + "' is already used on another device. Pick another one.");
+          else alert("Registration failed. Check your connection and try again.");
+          if (cb) cb(false);
+          return;
+        }
+        username = name;
+        sessionStorage.setItem("pc_myname", username);
+        localStorage.setItem("pc_myname", username);
+        if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+        if (cb) cb(true);
+      });
+    }
     const histKey = () => `pc_chat_${username.toLowerCase()}::${peer.toLowerCase()}`;
     const loadHist = () => { try { return JSON.parse(localStorage.getItem(histKey()) || "[]"); } catch { return []; } };
     const saveHist = (h) => localStorage.setItem(histKey(), JSON.stringify(h.slice(-500)));
@@ -248,32 +273,93 @@
       if (peerName.toLowerCase() === username.toLowerCase()) { alert("You can't chat with yourself"); return; }
       peer = peerName;
       addContact(peer);
+      try { localStorage.setItem("pc_lastpeer_" + username.toLowerCase(), peer); } catch (e) {}
       document.getElementById("chat-title").textContent = username + " ↔ " + peer;
       peerScreen.style.display = "none";
       messageFormBlur.style.display = "none";
       messageForm.style.display = "flex";
       messageContainer.innerHTML = "";
-      loadHist().forEach((m) => appendMsg(m.from === username ? `You: ${m.message}` : `${m.message} : ${m.from}`, m.from === username));
+      loadHist().forEach((m) => appendMsg(m, m.from === username));
+      fetchHistory(false);
+    }
+    function fetchHistory(countNew) {
+      if (!peer) return;
       socket.emit("get-history", { withUser: peer }, (srv) => {
-        if (!srv || !srv.length) return;
+        if (!srv) return;
         const local = loadHist();
-        const seen = new Set(local.map((m) => m.at + m.from + m.message));
-        const merged = [...local, ...srv.filter((m) => !seen.has(m.at + m.from + m.message))].sort((a, b) => a.at - b.at).slice(-500);
+        const seen = new Set(local.map(msgKey));
+        const fresh = srv.filter((m) => !seen.has(msgKey(m)));
+        const merged = [...local, ...fresh].sort((a, b) => a.at - b.at).slice(-500);
         messageContainer.innerHTML = "";
-        merged.forEach((m) => appendMsg(m.from === username ? `You: ${m.message}` : `${m.message} : ${m.from}`, m.from === username));
+        merged.forEach((m) => appendMsg(m, m.from === username));
         saveHist(merged);
+        if (countNew) {
+          const n = fresh.filter((m) => String(m.from).toLowerCase() !== username.toLowerCase()).length;
+          if (n > 0) showToast("📩 " + n + " new message" + (n > 1 ? "s" : "") + " from " + peer);
+        }
       });
     }
-    function appendMsg(text, mine) {
+    function appendMsg(m, mine) {
+      const edited = m.edited ? ' <small style="opacity:.6">(edited)</small>' : "";
+      const actions = (mine && m.id)
+        ? `<span class="msg-actions"><button onclick="editMsg('${m.id}')" title="Edit">✏️</button><button onclick="deleteMsg('${m.id}')" title="Delete">🗑</button></span>`
+        : "";
       messageContainer.innerHTML += mine
-        ? `<h1 style="background-color: #10a37f; margin-block: 10px;">You: ${text.replace(/^You:\s*/, "")}</h1>`
-        : `<h1 style="background-color: #6B6C7B;text-align:right; margin-block: 10px;">${text}</h1>`;
+        ? `<h1 data-mid="${m.id || ""}" style="background-color: #10a37f; margin-block: 10px;">You: ${m.message}${edited}${actions}</h1>`
+        : `<h1 data-mid="${m.id || ""}" style="background-color: #6B6C7B;text-align:right; margin-block: 10px;">${m.message} : ${m.from}${edited}</h1>`;
     }
+    function refreshCurrentView() {
+      messageContainer.innerHTML = "";
+      loadHist().forEach((m) => appendMsg(m, m.from === username));
+    }
+    function convKey(other) { return `pc_chat_${username.toLowerCase()}::${String(other).toLowerCase()}`; }
+    function upsertLocalMsg(m) {
+      const other = String(m.from).toLowerCase() === username.toLowerCase() ? m.to : m.from;
+      const k = convKey(other);
+      try {
+        const h = JSON.parse(localStorage.getItem(k) || "[]");
+        const i = h.findIndex((x) => x.id && x.id === m.id);
+        if (i >= 0) h[i] = m; else h.push(m);
+        localStorage.setItem(k, JSON.stringify(h.slice(-500)));
+      } catch (e) {}
+      if (peer && String(other).toLowerCase() === peer.toLowerCase()) refreshCurrentView();
+    }
+    function removeLocalMsg(id, from) {
+      const other = String(from).toLowerCase() === username.toLowerCase() ? peer : from;
+      const k = convKey(other || peer);
+      try {
+        const h = JSON.parse(localStorage.getItem(k) || "[]").filter((x) => x.id !== id);
+        localStorage.setItem(k, JSON.stringify(h.slice(-500)));
+      } catch (e) {}
+      const el = messageContainer.querySelector(`[data-mid="${id}"]`);
+      if (el) el.remove();
+    }
+    window.editMsg = (id) => {
+      const h = loadHist();
+      const m = h.find((x) => x.id === id);
+      if (!m) return;
+      const v = prompt("Edit message:", m.message);
+      if (v === null || v.trim() === "" || v.trim() === m.message) return;
+      socket.emit("edit-message", { withUser: peer, id, message: v.trim() }, (res) => {
+        if (!res || !res.ok) { alert("Edit failed"); return; }
+        m.message = v.trim(); m.edited = true; saveHist(h); refreshCurrentView();
+      });
+    };
+    window.deleteMsg = (id) => {
+      if (!confirm("Delete this message?")) return;
+      socket.emit("delete-message", { withUser: peer, id }, (res) => {
+        if (!res || !res.ok) { alert("Delete failed"); return; }
+        saveHist(loadHist().filter((x) => x.id !== id)); refreshCurrentView();
+      });
+    };
+    socket.on("message-edited", (m) => { if (username) upsertLocalMsg(m); });
+    socket.on("message-deleted", ({ id, from }) => { if (username && id) removeLocalMsg(id, from); });
     document.getElementById("start-peer").addEventListener("click", () => openChat());
     document.getElementById("btn-new").addEventListener("click", () => {
       messageForm.style.display = "none";
       peerScreen.style.display = "flex";
       peer = "";
+      try { localStorage.removeItem("pc_lastpeer_" + username.toLowerCase()); } catch (e) {}
       renderContacts();
     });
     form.onsubmit = (e) => {
@@ -283,9 +369,10 @@
       if (!peer) { alert("Choose who to chat with first"); return; }
       console.log("SEND to=" + peer + " msg=" + message + " connected=" + socket.connected);
       setStatus("📤 sending to " + peer + "...");
-      socket.emit("private-message", { to: peer, message });
-      appendMsg("You: " + message, true);
-      const h = loadHist(); h.push({ from: username, to: peer, message, at: Date.now() }); saveHist(h);
+      const msgObj = { id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7), from: username, to: peer, message, at: Date.now() };
+      socket.emit("private-message", { to: peer, message, id: msgObj.id });
+      appendMsg(msgObj, true);
+      const h = loadHist(); h.push(msgObj); saveHist(h);
       addContact(peer);
       input.value = "";
     };
@@ -293,21 +380,59 @@
       console.log("RECV", JSON.stringify(m));
       if (!username) return;
       const k = `pc_chat_${username.toLowerCase()}::${String(m.from).toLowerCase()}`;
-      try { const h = JSON.parse(localStorage.getItem(k) || "[]"); h.push(m); localStorage.setItem(k, JSON.stringify(h.slice(-500))); } catch (e) {}
+      try {
+        const h = JSON.parse(localStorage.getItem(k) || "[]");
+        if (!h.some((x) => x.id && x.id === m.id)) h.push(m);
+        localStorage.setItem(k, JSON.stringify(h.slice(-500)));
+      } catch (e) {}
       addContact(m.from);
       if (peer && m.from.toLowerCase() === peer.toLowerCase()) {
-        appendMsg(`${m.message} : ${m.from}`, false);
+        appendMsg(m, false);
       } else {
         showToast("📩 " + m.from + ": " + String(m.message).slice(0, 60) + " click to view");
         toastEl.onclick = () => { document.getElementById("peer-input").value = m.from; openChat(m.from); toastEl.classList.remove("show"); };
       }
       notifyMsg(m);
     });
-    socket.on("connect", () => {
-      const saved = sessionStorage.getItem("pc_myname");
-      if (saved && !username) { username = saved; usernameInput.value = saved; socket.emit("register", { username }); }
-      else if (username) socket.emit("register", { username });
-    });
+    let restorePeer = "";
+    try {
+      const savedName = sessionStorage.getItem("pc_myname") || localStorage.getItem("pc_myname");
+      if (savedName && !username) {
+        username = savedName;
+        usernameInput.value = savedName;
+        restorePeer = localStorage.getItem("pc_lastpeer_" + savedName.toLowerCase()) || "";
+      }
+    } catch (e) {}
     if (username) { usernameInput.value = username; }
+    socket.on("connect", () => {
+      const nameToReg = username || sessionStorage.getItem("pc_myname") || "";
+      if (!nameToReg) return;
+      socket.emit("register", { username: nameToReg }, (res) => {
+        if (!res || !res.ok) {
+          if (res && res.error === "taken") {
+            alert("Your saved username '" + nameToReg + "' is now used on another device. Please pick a new one.");
+            try { sessionStorage.removeItem("pc_myname"); localStorage.removeItem("pc_myname"); } catch (e) {}
+            username = "";
+            usernameScreen.style.display = "flex";
+            peerScreen.style.display = "none";
+            messageForm.style.display = "none";
+          }
+          return;
+        }
+        username = nameToReg;
+        try { sessionStorage.setItem("pc_myname", username); localStorage.setItem("pc_myname", username); } catch (e) {}
+        if (usernameScreen.style.display !== "none" && !peer && !restorePeer) {
+          usernameScreen.style.display = "none";
+          peerScreen.style.display = "flex";
+          document.getElementById("hello").textContent = "Hello " + username;
+          renderContacts();
+        }
+        if (restorePeer) { const p = restorePeer; restorePeer = ""; openChat(p); }
+        else if (peer) fetchHistory(true);
+      });
+    });
+    if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+    }
   </script>
 </html>

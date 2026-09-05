@@ -1,0 +1,19 @@
+{
+  "name": "socket.io Chat",
+  "short_name": "Chat",
+  "description": "Private real-time chat",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#343541",
+  "theme_color": "#343541",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+const CACHE = "chat-v1";
+const CORE = ["./", "./index.html", "./style.css", "./socket.io.min.js", "./icon.svg", "./manifest.json"];
+
+self.addEventListener("install", (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener("activate", (e) => {
+  e.waitUntil(
+    caches.keys()
+      .then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", (e) => {
+  if (e.request.method !== "GET" || e.request.url.includes("socket.io")) return;
+  e.respondWith(
+    caches.match(e.request).then((hit) => {
+      if (hit) return hit;
+      return fetch(e.request).then((res) => {
+        const u = new URL(e.request.url);
+        if (u.origin === location.origin && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy));
+        }
+        return res;
+      }).catch(() => caches.match("./index.html"));
+    })
+  );
+});
