@@ -15,7 +15,9 @@ const io = require('socket.io')(server, {
             return cb(null, true);
         },
         methods: ['GET', 'POST']
-    }
+    },
+    pingInterval: 10000,
+    pingTimeout: 10000
 });
 
 app.use((req, res, next) => {

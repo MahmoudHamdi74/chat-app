@@ -4,7 +4,7 @@ const path = require('path');
 const { Socket } = require('socket.io');
 const app = express();
 const server = require('http').createServer(app);
-const io = require('socket.io')(server, { cors: { origin: "*" } });
+const io = require('socket.io')(server, { cors: { origin: "*" }, pingInterval: 10000, pingTimeout: 10000 });
 
 app.use(express.static("view"));
 app.get('/', (req, res) => {
