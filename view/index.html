@@ -37,6 +37,15 @@
       .msg-menu button{background:none;border:none;color:#fff;cursor:pointer;font-size:14px;text-align:start;padding:6px 10px;border-radius:6px;white-space:nowrap}
       .msg-menu button:hover{background:#40414F}
       #btn-logout,#btn-notif{background:#40414F;color:#fff;border:1px solid #6B6C7B;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:13px;margin-inline-start:8px;white-space:nowrap}
+      .nav-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+      #chat-title{min-width:0;flex:1;overflow:hidden}
+      #chat-title span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      @media (max-width:480px){
+        #btn-new,#btn-logout,#btn-notif{font-size:12px;padding:4px 6px;margin-inline-start:0}
+        .nav-actions{gap:4px}
+        #chat-title{font-size:15px}
+        .nav-bar .close{display:none}
+      }
     </style>
   </head>
   <body>
@@ -45,9 +54,11 @@
     <form class="container" id="message-form" style="display: none;">
       <div class="nav-bar">
         <a id="chat-title" style="display:flex;align-items:center;gap:8px"><svg class="app-logo" viewBox="0 0 48 48" width="28" height="28" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#12b886"/><stop offset="1" stop-color="#0b6e54"/></linearGradient></defs><rect x="2" y="2" width="44" height="44" rx="12" fill="url(#lg)"/><path d="M13 15h22a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H24l-7 7v-7h-4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z" fill="#fff"/><circle cx="20" cy="21.5" r="2" fill="#0b6e54"/><circle cx="25" cy="21.5" r="2" fill="#0b6e54"/><circle cx="30" cy="21.5" r="2" fill="#0b6e54"/></svg><span>Chat</span></a>
+        <div class="nav-actions">
         <button type="button" id="btn-new" title="chat with someone else">New Chat ➕</button>
         <button type="button" id="btn-notif" title="Enable notifications">🔔</button>
         <button type="button" id="btn-logout" title="Log out">Logout</button>
+        </div>
         <div class="close">
           <div class="line one"></div>
           <div class="line two"></div>
@@ -460,32 +471,43 @@
       }
     } catch (e) {}
     if (username) { usernameInput.value = username; }
+    let regRetries = 0;
+    function handleRegAck(nameToReg, res) {
+      if (!res || !res.ok) {
+        if (res && res.error === "taken" && regRetries < 5) {
+          regRetries++;
+          setStatus("🔄 reconnecting (" + regRetries + ")...");
+          setTimeout(() => {
+            if (username === nameToReg && nameToReg) socket.emit("register", { username: nameToReg }, (r) => handleRegAck(nameToReg, r));
+          }, 2500);
+          return;
+        }
+        if (res && res.error === "taken") {
+          alert("Username '" + nameToReg + "' is in use on another device. If that was you, close the other tab/app and tap Start.");
+          usernameInput.value = nameToReg;
+          username = "";
+          usernameScreen.style.display = "";
+          peerScreen.style.display = "none";
+          messageForm.style.display = "none";
+        }
+        return;
+      }
+      regRetries = 0;
+      username = nameToReg;
+      try { sessionStorage.setItem("pc_myname", username); localStorage.setItem("pc_myname", username); } catch (e) {}
+      if (usernameScreen.style.display !== "none" && !peer && !restorePeer) {
+        usernameScreen.style.display = "none";
+        peerScreen.style.display = "flex";
+        document.getElementById("hello").textContent = "Hello " + username;
+        renderContacts();
+      }
+      if (restorePeer) { const p = restorePeer; restorePeer = ""; openChat(p); }
+      else if (peer) fetchHistory(true);
+    }
     socket.on("connect", () => {
       const nameToReg = username || sessionStorage.getItem("pc_myname") || "";
       if (!nameToReg) return;
-      socket.emit("register", { username: nameToReg }, (res) => {
-        if (!res || !res.ok) {
-          if (res && res.error === "taken") {
-            alert("Your saved username '" + nameToReg + "' is now used on another device. Please pick a new one.");
-            try { sessionStorage.removeItem("pc_myname"); localStorage.removeItem("pc_myname"); } catch (e) {}
-            username = "";
-            usernameScreen.style.display = "flex";
-            peerScreen.style.display = "none";
-            messageForm.style.display = "none";
-          }
-          return;
-        }
-        username = nameToReg;
-        try { sessionStorage.setItem("pc_myname", username); localStorage.setItem("pc_myname", username); } catch (e) {}
-        if (usernameScreen.style.display !== "none" && !peer && !restorePeer) {
-          usernameScreen.style.display = "none";
-          peerScreen.style.display = "flex";
-          document.getElementById("hello").textContent = "Hello " + username;
-          renderContacts();
-        }
-        if (restorePeer) { const p = restorePeer; restorePeer = ""; openChat(p); }
-        else if (peer) fetchHistory(true);
-      });
+      socket.emit("register", { username: nameToReg }, (res) => handleRegAck(nameToReg, res));
     });
     if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));

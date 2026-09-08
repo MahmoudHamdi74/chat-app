@@ -1,4 +1,4 @@
-const CACHE = "chat-v1";
+const CACHE = "chat-v2";
 const CORE = ["./", "./index.html", "./style.css", "./socket.io.min.js", "./icon.svg", "./manifest.json"];
 
 self.addEventListener("install", (e) => {
