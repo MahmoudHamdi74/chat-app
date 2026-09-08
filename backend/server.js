@@ -129,6 +129,18 @@ io.on('connection', socket =>{
         io.to('user:' + withUser.toLowerCase()).emit('message-deleted', { id, from: msg.from, to: msg.to });
         cb && cb({ ok: true });
     })
+    socket.on('logout', () => {
+        const username = socket.data.username;
+        if (!username) return;
+        socket.data.username = null;
+        socket.leave('user:' + username.toLowerCase());
+        const entry = users.get(username.toLowerCase());
+        if (entry) {
+            entry.sockets.delete(socket.id);
+            if (liveSockets(entry).size === 0) users.delete(username.toLowerCase());
+        }
+        io.emit('users-online', [...users.values()].map(u => u.name));
+    })
     socket.on('disconnect', () => {
         const username = socket.data.username;
         if (!username) return;

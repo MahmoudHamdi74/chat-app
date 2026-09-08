@@ -31,8 +31,12 @@
       .contact{display:flex;justify-content:space-between;align-items:center;background:#343541;border:1px solid #40414F;border-radius:8px;padding:10px 14px;color:#fff;cursor:pointer;font-size:16px}
       #btn-new{background:#40414F;color:#fff;border:1px solid #6B6C7B;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:13px;margin-inline-start:8px}
       .app-logo{border-radius:8px;flex-shrink:0}
-      .msg-actions button{background:none;border:none;cursor:pointer;font-size:12px;margin-inline-start:8px;opacity:.7}
-      .msg-actions button:hover{opacity:1}
+      .msg-menu-wrap{position:relative;float:left}
+      .msg-menu-btn{background:none;border:none;cursor:pointer;color:#fff;font-size:16px;opacity:.85;padding:0 4px;line-height:1}
+      .msg-menu{position:absolute;top:110%;left:0;display:flex;flex-direction:column;gap:2px;background:#2E2F3A;border:1px solid #6B6C7B;border-radius:8px;padding:6px;z-index:30;min-width:110px;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+      .msg-menu button{background:none;border:none;color:#fff;cursor:pointer;font-size:14px;text-align:start;padding:6px 10px;border-radius:6px;white-space:nowrap}
+      .msg-menu button:hover{background:#40414F}
+      #btn-logout,#btn-notif{background:#40414F;color:#fff;border:1px solid #6B6C7B;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:13px;margin-inline-start:8px;white-space:nowrap}
     </style>
   </head>
   <body>
@@ -42,6 +46,8 @@
       <div class="nav-bar">
         <a id="chat-title" style="display:flex;align-items:center;gap:8px"><svg class="app-logo" viewBox="0 0 48 48" width="28" height="28" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#12b886"/><stop offset="1" stop-color="#0b6e54"/></linearGradient></defs><rect x="2" y="2" width="44" height="44" rx="12" fill="url(#lg)"/><path d="M13 15h22a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H24l-7 7v-7h-4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z" fill="#fff"/><circle cx="20" cy="21.5" r="2" fill="#0b6e54"/><circle cx="25" cy="21.5" r="2" fill="#0b6e54"/><circle cx="30" cy="21.5" r="2" fill="#0b6e54"/></svg><span>Chat</span></a>
         <button type="button" id="btn-new" title="chat with someone else">New Chat ➕</button>
+        <button type="button" id="btn-notif" title="Enable notifications">🔔</button>
+        <button type="button" id="btn-logout" title="Log out">Logout</button>
         <div class="close">
           <div class="line one"></div>
           <div class="line two"></div>
@@ -232,7 +238,7 @@
         username = name;
         sessionStorage.setItem("pc_myname", username);
         localStorage.setItem("pc_myname", username);
-        if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+        if ("Notification" in window && Notification.permission === "default") { try { Notification.requestPermission().then(() => refreshNotifBtn()).catch(() => {}); } catch (e) {} }
         if (cb) cb(true);
       });
     }
@@ -265,7 +271,23 @@
     function notifyMsg(m) {
       beep();
       showToast("📩 " + m.from + ": " + String(m.message).slice(0, 60));
-      if ("Notification" in window && Notification.permission === "granted") { try { new Notification("Message from " + m.from, { body: m.message }); } catch (e) {} }
+      if (!("Notification" in window) || Notification.permission !== "granted") return;
+      const title = "Message from " + m.from;
+      const opts = { body: String(m.message).slice(0, 200), icon: "./icon.svg", tag: "msg-" + (m.id || m.at) };
+      try {
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.getRegistration().then((reg) => {
+            if (reg) reg.showNotification(title, opts);
+            else { try { new Notification(title, opts); } catch (e) {} }
+          }).catch(() => { try { new Notification(title, opts); } catch (e) {} });
+        } else { try { new Notification(title, opts); } catch (e) {} }
+      } catch (e) {}
+    }
+    function refreshNotifBtn() {
+      const b = document.getElementById("btn-notif");
+      if (!b || !("Notification" in window)) return;
+      b.textContent = Notification.permission === "granted" ? "🔔" : "🔕";
+      b.title = "Notifications: " + Notification.permission + " (tap to enable)";
     }
     function openChat(peerName) {
       peerName = String(peerName || document.getElementById("peer-input").value || "").trim();
@@ -301,13 +323,22 @@
     }
     function appendMsg(m, mine) {
       const edited = m.edited ? ' <small style="opacity:.6">(edited)</small>' : "";
-      const actions = (mine && m.id)
-        ? `<span class="msg-actions"><button onclick="editMsg('${m.id}')" title="Edit">✏️</button><button onclick="deleteMsg('${m.id}')" title="Delete">🗑</button></span>`
+      const menu = (mine && m.id)
+        ? `<span class="msg-menu-wrap"><button class="msg-menu-btn" onclick="toggleMsgMenu(event,'${m.id}')" title="Options">⋮</button><span class="msg-menu" id="mm-${m.id}" style="display:none"><button onclick="editMsg('${m.id}')">✏️ Edit</button><button onclick="deleteMsg('${m.id}')">🗑 Delete</button></span></span>`
         : "";
       messageContainer.innerHTML += mine
-        ? `<h1 data-mid="${m.id || ""}" style="background-color: #10a37f; margin-block: 10px;">You: ${m.message}${edited}${actions}</h1>`
+        ? `<h1 data-mid="${m.id || ""}" style="background-color: #10a37f; margin-block: 10px;">${menu}You: ${m.message}${edited}</h1>`
         : `<h1 data-mid="${m.id || ""}" style="background-color: #6B6C7B;text-align:right; margin-block: 10px;">${m.message} : ${m.from}${edited}</h1>`;
     }
+    function closeAllMenus() { document.querySelectorAll(".msg-menu").forEach((el) => { el.style.display = "none"; }); }
+    window.toggleMsgMenu = (e, id) => {
+      if (e) e.stopPropagation();
+      const el = document.getElementById("mm-" + id);
+      const wasHidden = !el || el.style.display === "none";
+      closeAllMenus();
+      if (el && wasHidden) el.style.display = "flex";
+    };
+    document.addEventListener("click", () => closeAllMenus());
     function refreshCurrentView() {
       messageContainer.innerHTML = "";
       loadHist().forEach((m) => appendMsg(m, m.from === username));
@@ -335,6 +366,7 @@
       if (el) el.remove();
     }
     window.editMsg = (id) => {
+      closeAllMenus();
       const h = loadHist();
       const m = h.find((x) => x.id === id);
       if (!m) return;
@@ -346,6 +378,7 @@
       });
     };
     window.deleteMsg = (id) => {
+      closeAllMenus();
       if (!confirm("Delete this message?")) return;
       socket.emit("delete-message", { withUser: peer, id }, (res) => {
         if (!res || !res.ok) { alert("Delete failed"); return; }
@@ -362,6 +395,31 @@
       try { localStorage.removeItem("pc_lastpeer_" + username.toLowerCase()); } catch (e) {}
       renderContacts();
     });
+    document.getElementById("btn-notif").addEventListener("click", () => {
+      if (!("Notification" in window)) { alert("Notifications not supported here"); return; }
+      Notification.requestPermission().then(() => {
+        refreshNotifBtn();
+        setStatus(Notification.permission === "granted" ? "🔔 notifications enabled" : "🔕 notifications: " + Notification.permission);
+      }).catch(() => refreshNotifBtn());
+    });
+    document.getElementById("btn-logout").addEventListener("click", () => {
+      if (!confirm("Log out of '" + username + "'?")) return;
+      try {
+        localStorage.removeItem("pc_myname");
+        localStorage.removeItem("pc_lastpeer_" + username.toLowerCase());
+        sessionStorage.removeItem("pc_myname");
+      } catch (e) {}
+      socket.emit("logout");
+      username = ""; peer = ""; restorePeer = "";
+      messageContainer.innerHTML = "";
+      usernameInput.value = "";
+      messageForm.style.display = "none";
+      peerScreen.style.display = "none";
+      messageFormBlur.style.display = "";
+      usernameScreen.style.display = "";
+      setStatus("👋 logged out");
+    });
+    refreshNotifBtn();
     form.onsubmit = (e) => {
       e.preventDefault();
       const message = input.value.trim();
